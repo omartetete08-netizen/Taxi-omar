@@ -1,1 +1,277 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تطبيق المشاوير المصغر</title>
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg-color: var(--tg-theme-bg-color, #f4f6f8);
+            --text-color: var(--tg-theme-text-color, #222222);
+            --hint-color: var(--tg-theme-hint-color, #888888);
+            --button-color: var(--tg-theme-button-color, #2481cc);
+            --button-text: var(--tg-theme-button-text-color, #ffffff);
+            --card-bg: #ffffff;
+            --success-color: #2e7d32;
+        }
 
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 16px;
+            box-sizing: border-box;
+            direction: rtl;
+        }
+
+        .role-switcher {
+            display: flex;
+            background: #e0e0e0;
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 20px;
+        }
+
+        .role-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .role-btn.active {
+            background: var(--card-bg);
+            color: var(--button-color);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .view-section {
+            display: none;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: var(--hint-color);
+            margin-bottom: 6px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .main-btn {
+            width: 100%;
+            padding: 14px;
+            background-color: var(--button-color);
+            color: var(--button-text);
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .main-btn:active {
+            opacity: 0.9;
+        }
+
+        .toggle-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-online { background: #e8f5e9; color: var(--success-color); }
+        .status-offline { background: #ffebee; color: #c62828; }
+
+        .ride-card {
+            border-right: 4px solid var(--button-color);
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .btn-accept { background: var(--success-color); color: #fff; flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: bold; }
+        .btn-reject { background: #ffebee; color: #c62828; flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <!-- مفتاح التبديل بين العميل والسائق -->
+    <div class="role-switcher">
+        <button class="role-btn active" onclick="switchRole('client')">📱 واجهة العميل</button>
+        <button class="role-btn" onclick="switchRole('driver')">🚗 واجهة السائق</button>
+    </div>
+
+    <!-- ===== 1. واجهة العميل ===== -->
+    <div id="client-view" class="view-section active">
+        <div class="card">
+            <h3>طلب مشوار جديد</h3>
+            <div class="form-group">
+                <label>موقع الانطلاق</label>
+                <input type="text" id="pickup" value="موقعي الحالي (حي الخالدية)" readonly>
+            </div>
+            <div class="form-group">
+                <label>وجهة الوصول</label>
+                <input type="text" id="dropoff" placeholder="أدخل المكان المراد الوصول إليه...">
+            </div>
+            <div class="form-group">
+                <label>نوع المركبة</label>
+                <select id="car-type" onchange="calculateFare()">
+                    <option value="1.0">اقتصادي (Standard)</option>
+                    <option value="1.4">مريح (VIP)</option>
+                    <option value="1.8">عائلي (XL)</option>
+                </select>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 15px; font-weight: bold;">
+                <span>التكلفة التقديرية:</span>
+                <span id="fare-price" style="color: var(--button-color);">25 ر.س</span>
+            </div>
+            <button class="main-btn" onclick="requestRide()">تأكيد طلب المشوار</button>
+        </div>
+
+        <div class="card">
+            <h4>سجل الرحلات الأخيرة</h4>
+            <p style="font-size: 13px; color: var(--hint-color);">لا توجد رحلات سابقة اليوم.</p>
+        </div>
+    </div>
+
+    <!-- ===== 2. واجهة السائق ===== -->
+    <div id="driver-view" class="view-section">
+        <div class="card">
+            <div class="toggle-container">
+                <span>حالة استقبال الطلبات:</span>
+                <span id="driver-status" class="status-badge status-online">متصل (جاهر)</span>
+            </div>
+            <button class="main-btn" style="background: #e0e0e0; color: #333; margin-top: 12px;" onclick="toggleDriverStatus()">تغيير الحالة</button>
+        </div>
+
+        <h3>الطلبات القريبة (1)</h3>
+        
+        <div class="card ride-card" id="incoming-request">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong>طلب جديد #1024</strong>
+                <span style="color: var(--success-color); font-weight: bold;">32 ر.س</span>
+            </div>
+            <p style="font-size: 13px; margin: 8px 0; color: var(--hint-color);">📍 من: حي الزهراء<br>🏁 إلى: المطار - الصالة 1 (14 كم)</p>
+            <div class="actions">
+                <button class="btn-accept" onclick="acceptRide()">قبول الطلب</button>
+                <button class="btn-reject" onclick="rejectRide()">تجاهل</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // إعداد Telegram WebApp
+        const tg = window.Telegram.WebApp;
+        if (tg) {
+            tg.expand();
+        }
+
+        // التبديل بين الواجهات
+        function switchRole(role) {
+            document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.view-section').forEach(view => view.classList.remove('active'));
+
+            if (role === 'client') {
+                document.querySelectorAll('.role-btn')[0].classList.add('active');
+                document.getElementById('client-view').classList.add('active');
+            } else {
+                document.querySelectorAll('.role-btn')[1].classList.add('active');
+                document.getElementById('driver-view').classList.add('active');
+            }
+        }
+
+        // حساب السعر التقديري
+        function calculateFare() {
+            const multiplier = parseFloat(document.getElementById('car-type').value);
+            const baseFare = 25;
+            const total = Math.round(baseFare * multiplier);
+            document.getElementById('fare-price').innerText = total + " ر.س";
+        }
+
+        // طلب مشوار (عميل)
+        function requestRide() {
+            const dropoff = document.getElementById('dropoff').value;
+            if (!dropoff) {
+                alert("يرجى تحديد وجهة الوصول أولاً!");
+                return;
+            }
+            if (tg && tg.showPopup) {
+                tg.showPopup({
+                    title: "تم إرسال الطلب",
+                    message: "جاري البحث عن أقرب سائق متاح...",
+                    buttons: [{type: "ok"}]
+                });
+            } else {
+                alert("تم إرسال الطلب! جاري البحث عن سائق...");
+            }
+        }
+
+        // قبول مشوار (سائق)
+        function acceptRide() {
+            alert("تم قبول المشوار! يمكنك الآن التوجه لنقطة الانطلاق.");
+            document.getElementById('incoming-request').style.display = 'none';
+        }
+
+        function rejectRide() {
+            document.getElementById('incoming-request').style.display = 'none';
+        }
+
+        let isOnline = true;
+        function toggleDriverStatus() {
+            isOnline = !isOnline;
+            const statusBadge = document.getElementById('driver-status');
+            if (isOnline) {
+                statusBadge.innerText = "متصل (جاهز)";
+                statusBadge.className = "status-badge status-online";
+            } else {
+                statusBadge.innerText = "غير متصل";
+                statusBadge.className = "status-badge status-offline";
+            }
+        }
+    </script>
+</body>
+</html>
